@@ -1,0 +1,5 @@
+!.gitignore
+Video/
+Video/*
+__pycache__/
+__pycache__/*
