@@ -1,6 +1,7 @@
 # 欧拉视频运动放大框架 (Eulerian Video Magnification Framework)
 
 一个强大的视频运动放大工具，能够放大人眼难以察觉的微小运动。
+**本工具使用AI生成**
 
 ## 特性
 
