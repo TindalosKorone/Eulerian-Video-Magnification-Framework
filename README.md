@@ -12,6 +12,7 @@ git clone https://github.com/yourusername/Eulerian-Video-Magnification.git
 cd Eulerian-Video-Magnification
 pip install -r requirements.txt
 ```
+**注意，pytorch需要根据本身的环境进行安装，默认情况下只安装CPU运行部分，如需使用cuda，请参考官方的安装教程 https://pytorch.org/get-started/locally/**
 
 ### 基本用法
 
