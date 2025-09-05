@@ -8,6 +8,9 @@ import gc
 import os
 import tempfile
 import stabilizer
+import frequency_analyzer
+import cache_manager
+import sys
 
 # Preset configurations
 PRESETS = {
@@ -53,9 +56,20 @@ def main():
     # Required arguments
     parser.add_argument('input', type=str, 
                         help='Path to the input video file')
-    parser.add_argument('output', type=str, 
-                        help='Path to the output video file')
+    parser.add_argument('output', type=str, nargs='?', default=None,
+                        help='Path to the output video file (optional for analysis-only mode)')
     
+    
+    # Operation mode options
+    mode_group = parser.add_argument_group('Operation Modes')
+    mode_group.add_argument('--analyze-only', action='store_true',
+                          help='Only perform frequency analysis without magnification')
+    mode_group.add_argument('--use-analysis', type=str, metavar='PATH',
+                          help='Use existing frequency analysis results from the specified JSON file')
+    mode_group.add_argument('--no-cache', action='store_true',
+                          help='Disable caching (by default, caching is enabled)')
+    mode_group.add_argument('--suggest-params', action='store_true',
+                          help='Suggest parameters based on video analysis and exit')
     
     # Preset configuration
     parser.add_argument('--preset', type=str, choices=list(PRESETS.keys()),
@@ -89,6 +103,10 @@ def main():
     enhancement_group = parser.add_argument_group('Enhancements')
     enhancement_group.add_argument('--stabilize', action='store_true',
                                 help='Stabilize video before magnification')
+    enhancement_group.add_argument('--stabilize-radius', type=int, default=None,
+                                help='Stabilization smoothing radius in frames (default: fps)')
+    enhancement_group.add_argument('--stabilize-strength', type=float, default=0.95,
+                                help='Stabilization strength (0.0-1.0)')
     enhancement_group.add_argument('--adaptive', action='store_true',
                                 help='Use adaptive amplification (stronger for larger structures)')
     enhancement_group.add_argument('--bilateral', action='store_true',
@@ -97,9 +115,36 @@ def main():
                                 help='Stabilize colors to reduce flickering')
     enhancement_group.add_argument('--multiband', action='store_true',
                                 help='Process frequency range in multiple bands')
+    enhancement_group.add_argument('--keep-temp', action='store_true',
+                                help='Keep temporary files (like stabilized video)')
+    
+    # Analysis parameters
+    analysis_group = parser.add_argument_group('Analysis Parameters')
+    analysis_group.add_argument('--analysis-dir', type=str, default=None,
+                              help='Directory to save analysis results (default: same as output)')
+    analysis_group.add_argument('--sampling-rate', type=float, default=0.5,
+                              help='Fraction of frames to analyze (0.0-1.0)')
+    analysis_group.add_argument('--max-points', type=int, default=200,
+                              help='Maximum number of feature points to track per frame')
+    analysis_group.add_argument('--downsample-factor', type=int, default=1,
+                              help='Spatial downsample factor for frequency maps (higher values use less memory)')
+    analysis_group.add_argument('--max-freq-bands', type=int, default=20,
+                              help='Maximum number of frequency bands to analyze (higher values use more memory)')
+    analysis_group.add_argument('--skip-visualizations', action='store_true',
+                              help='Skip generating visualization images to speed up analysis')
     
     args = parser.parse_args()
 
+    # Check for valid argument combinations
+    if args.analyze_only and args.output is not None:
+        print("Warning: Output path is ignored in analysis-only mode")
+    
+    if not args.analyze_only and args.output is None:
+        parser.error("Output path is required unless --analyze-only is specified")
+    
+    # Initialize cache manager
+    cm = cache_manager.CacheManager()
+    
     # Apply preset if specified
     if args.preset:
         preset = PRESETS[args.preset]
@@ -119,15 +164,159 @@ def main():
     print(f"Using device: {device}")
 
     input_video_path = args.input
-    temp_file_handle, temp_stabilized_path = None, None
+    temp_stabilized_path = None
+    analysis_results = None
+    suggested_ranges = []
 
+    # Determine the output directory for saving analysis results
+    if args.output:
+        output_dir = os.path.dirname(os.path.abspath(args.output))
+    else:
+        output_dir = os.path.dirname(os.path.abspath(args.input))
+    
+    if args.analysis_dir:
+        analysis_dir = args.analysis_dir
+    else:
+        analysis_dir = output_dir
+        
+    if not os.path.exists(analysis_dir):
+        os.makedirs(analysis_dir)
+    
+    # Check if we should use an existing analysis
+    if args.use_analysis:
+        if os.path.exists(args.use_analysis):
+            analysis_results = frequency_analyzer.load_analysis_results(args.use_analysis)
+            if analysis_results:
+                print(f"Loaded analysis results from: {args.use_analysis}")
+                suggested_ranges = analysis_results.get('suggested_ranges', [])
+                
+                # Display the suggested frequency ranges
+                print("Suggested frequency ranges based on analysis:")
+                for i, range_info in enumerate(suggested_ranges):
+                    desc = range_info.get('description', '')
+                    if 'peak_freq' in range_info:
+                        print(f"  {i+1}. {range_info['freq_min']:.2f}-{range_info['freq_max']:.2f} Hz (peak at {range_info['peak_freq']:.2f} Hz) - {desc}")
+                    else:
+                        print(f"  {i+1}. {range_info['freq_min']:.2f}-{range_info['freq_max']:.2f} Hz - {desc}")
+            else:
+                print(f"Error: Could not load analysis results from {args.use_analysis}")
+                sys.exit(1)
+        else:
+            print(f"Error: Analysis file {args.use_analysis} does not exist")
+            sys.exit(1)
+    
+    # If no existing analysis and suggest-params or analyze-only mode, perform analysis
+    if not analysis_results and (args.analyze_only or args.suggest_params):
+        # Check if we have cached analysis results
+        cached_analysis_path = None
+        if not args.no_cache:
+            analysis_params = {
+                'sampling_rate': args.sampling_rate,
+                'max_points': args.max_points,
+                'downsample_factor': args.downsample_factor,
+                'max_freq_bands': args.max_freq_bands,
+                'skip_visualizations': args.skip_visualizations
+            }
+            cached_analysis_path = cm.get_analysis_results_path(args.input, analysis_params)
+        
+        if cached_analysis_path:
+            # Use cached analysis
+            analysis_results = frequency_analyzer.load_analysis_results(cached_analysis_path)
+            print(f"Using cached frequency analysis from: {cached_analysis_path}")
+            suggested_ranges = analysis_results.get('suggested_ranges', [])
+        else:
+            # Perform new analysis
+            print("Performing frequency analysis...")
+            analysis_output = frequency_analyzer.analyze_video_frequencies(
+                args.input, 
+                output_dir=analysis_dir,
+                sampling_rate=args.sampling_rate,
+                max_points=args.max_points,
+                downsample_factor=args.downsample_factor,
+                max_freq_bands=args.max_freq_bands,
+                generate_visualizations=not args.skip_visualizations
+            )
+            
+            # Cache the analysis results
+            if 'metadata_path' in analysis_output:
+                analysis_results = frequency_analyzer.load_analysis_results(analysis_output['metadata_path'])
+                analysis_params = {
+                    'sampling_rate': args.sampling_rate,
+                    'max_points': args.max_points,
+                    'downsample_factor': args.downsample_factor,
+                    'max_freq_bands': args.max_freq_bands,
+                    'skip_visualizations': args.skip_visualizations
+                }
+                cm.add_analysis_results(
+                    args.input, 
+                    analysis_output['metadata_path'],
+                    analysis_output['visualization_paths'],
+                    analysis_params
+                )
+                suggested_ranges = analysis_output.get('suggested_ranges', [])
+        
+        # If only suggesting parameters or analyze-only mode, exit here
+        if args.suggest_params:
+            if suggested_ranges:
+                # Use the first suggested range as the recommended parameters
+                best_range = suggested_ranges[0]
+                print("\nRecommended parameters:")
+                print(f"  --freq-min {best_range['freq_min']:.2f} --freq-max {best_range['freq_max']:.2f}")
+                if 'peak_freq' in best_range:
+                    print(f"  Motion peak detected at {best_range['peak_freq']:.2f} Hz")
+            else:
+                print("\nNo clear frequency peaks detected. Using default parameters is recommended.")
+            sys.exit(0)
+            
+        if args.analyze_only:
+            print("\nFrequency analysis complete. Run again with normal mode to magnify motion.")
+            sys.exit(0)
+            
+    # Stabilization (with cache support)
     if args.stabilize:
-        print("Stabilization enabled. This may take a while...")
-        temp_file_handle, temp_stabilized_path = tempfile.mkstemp(suffix=".mp4")
-        os.close(temp_file_handle) # Close the handle so the stabilizer can write to the file
-        stabilizer.stabilize_video(args.input, temp_stabilized_path)
-        input_video_path = temp_stabilized_path
-        print(f"Stabilized video saved temporarily to {temp_stabilized_path}")
+        # Check if we have a cached stabilized version
+        cached_stabilized_path = None
+        if not args.no_cache:
+            stabilize_params = {
+                'radius': args.stabilize_radius,
+                'strength': args.stabilize_strength
+            }
+            cached_stabilized_path = cm.get_stabilized_video_path(args.input, stabilize_params)
+        
+        if cached_stabilized_path:
+            # Use cached stabilized video
+            input_video_path = cached_stabilized_path
+            temp_stabilized_path = cached_stabilized_path
+            print(f"Using cached stabilized video: {cached_stabilized_path}")
+        else:
+            print("Stabilization enabled. This may take a while...")
+            # Get output directory
+            if not output_dir:  # If output is in current directory
+                output_dir = os.getcwd()
+                
+            # Create output directory if it doesn't exist
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+                
+            # Generate stabilized video filename in the same directory as output
+            input_filename = os.path.basename(args.input)
+            input_name, input_ext = os.path.splitext(input_filename)
+            temp_stabilized_path = os.path.join(output_dir, f"{input_name}_stabilized{input_ext}")
+            
+            # Perform stabilization
+            stabilizer.stabilize_video(args.input, temp_stabilized_path, 
+                                     smoothing_radius=args.stabilize_radius,
+                                     smoothing_strength=args.stabilize_strength)
+            input_video_path = temp_stabilized_path
+            print(f"Stabilized video saved to: {temp_stabilized_path}")
+            
+            # Cache the stabilized video
+            if not args.no_cache:
+                stabilize_params = {
+                    'radius': args.stabilize_radius,
+                    'strength': args.stabilize_strength
+                }
+                cm.add_stabilized_video(args.input, temp_stabilized_path, stabilize_params)
 
     vidcap = cv2.VideoCapture(input_video_path)
     if not vidcap.isOpened():
@@ -218,9 +407,15 @@ def main():
     vidcap.release()
     out.release()
 
-    if temp_stabilized_path:
+    # Handle temporary files
+    if temp_stabilized_path and not args.keep_temp and not cached_stabilized_path:
         print(f"Cleaning up temporary file: {temp_stabilized_path}")
         os.remove(temp_stabilized_path)
+    elif temp_stabilized_path and args.keep_temp:
+        print(f"Temporary stabilized video kept at: {temp_stabilized_path}")
+        
+    # Clean up old cache files periodically
+    cm.clean_cache()
 
     print(f"Video processing complete! Output saved to: {args.output}")
     print("\nTip: If you want to try different settings, try using presets like:")
@@ -231,6 +426,17 @@ def main():
     print(f"  python main.py {args.input} {args.output} --blur 0.5 --motion-threshold 0.02 --adaptive")
     print("\nAdvanced enhancement options:")
     print(f"  python main.py {args.input} {args.output} --bilateral --color-stabilize --multiband")
+    print("\nVideo stabilization options:")
+    print(f"  python main.py {args.input} {args.output} --stabilize --stabilize-radius 15 --stabilize-strength 0.8 --keep-temp")
+    print("\nFrequency analysis options:")
+    print(f"  python main.py {args.input} --analyze-only")
+    print(f"  python main.py {args.input} --suggest-params")
+    print(f"  python main.py {args.input} {args.output} --use-analysis path/to/analysis.json")
+    print("\nCache management options:")
+    print(f"  python main.py {args.input} {args.output} --no-cache  # 禁用缓存（默认启用）")
+    print("\nPerformance optimization options:")
+    print(f"  python main.py {args.input} --analyze-only --sampling-rate 0.2 --max-points 100")
+    print(f"  python main.py {args.input} --analyze-only --downsample-factor 2 --max-freq-bands 10 --skip-visualizations")
 
 if __name__ == '__main__':
     main()

@@ -2,9 +2,22 @@ import numpy as np
 import cv2
 from tqdm import tqdm
 
-def stabilize_video(input_path, output_path):
+def stabilize_video(input_path, output_path, smoothing_radius=None, smoothing_strength=0.95):
     """
     Stabilizes a video by removing camera shake.
+    
+    Parameters:
+    -----------
+    input_path : str
+        Path to the input video file
+    output_path : str
+        Path to save the stabilized video
+    smoothing_radius : int, optional
+        Radius (in frames) for trajectory smoothing.
+        If None, will use the video's fps as a reasonable default (1 second window)
+    smoothing_strength : float, optional
+        Strength of the smoothing effect (0.0-1.0).
+        Higher values result in more aggressive stabilization.
     """
     cap = cv2.VideoCapture(input_path)
     if not cap.isOpened():
@@ -50,13 +63,21 @@ def stabilize_video(input_path, output_path):
 
     trajectory = np.cumsum(transforms, axis=0)
     
+    # Set default smoothing radius if not provided
+    if smoothing_radius is None:
+        smoothing_radius = int(fps) # Default: smooth over a 1-second window
+    
+    # Apply smoothing
     smoothed_trajectory = np.zeros_like(trajectory)
-    smoothing_radius = int(fps) # Smooth over a 1-second window
     for i in range(trajectory.shape[0]):
         start = max(0, i - smoothing_radius)
         end = min(trajectory.shape[0], i + smoothing_radius)
         smoothed_trajectory[i] = np.mean(trajectory[start:end], axis=0)
 
+    # Apply smoothing strength factor
+    smoothed_trajectory = trajectory + smoothing_strength * (smoothed_trajectory - trajectory)
+    
+    # Calculate stabilization transforms
     transforms_smooth = transforms + smoothed_trajectory - trajectory
 
     cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
