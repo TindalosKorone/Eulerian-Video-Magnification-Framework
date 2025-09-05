@@ -2,6 +2,11 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
+# 设置中文字体支持
+plt.rcParams['font.sans-serif'] = ['SimHei', 'Microsoft YaHei', 'SimSun', 'STSong', 'sans-serif']
+# 解决负号显示问题
+plt.rcParams['axes.unicode_minus'] = False
+
 def visualize_frequency_preset(preset_name, preset_data, fps=30, output_dir=None):
     """
     可视化预设的频率响应。

@@ -1,9 +1,8 @@
-# 欧拉视频运动放大框架 (Eulerian Video Magnification Framework)
+# 欧拉视频运动放大框架
 
-一个强大的视频运动放大工具，能够放大人眼难以察觉的微小运动。
-**本工具使用AI生成**
+> 放大人眼难以察觉的微小运动，实现视觉增强。
 
-## 快速开始
+## 🚀 快速开始
 
 ### 安装
 
@@ -12,176 +11,136 @@ git clone https://github.com/yourusername/Eulerian-Video-Magnification.git
 cd Eulerian-Video-Magnification
 pip install -r requirements.txt
 ```
-**注意，pytorch需要根据本身的环境进行安装，默认情况下只安装CPU运行部分，如需使用cuda，请参考官方的安装教程 https://pytorch.org/get-started/locally/**
+> **注意**：pytorch需单独安装。CUDA支持请参考 [官方教程](https://pytorch.org/get-started/locally/)
 
-### 基本用法
+### 核心命令
 
 ```bash
-# 基本放大
-python main.py magnify input.mp4 output.mp4
+# 分析视频中的运动频率
+python main.py analyze input.mp4
 
-# 使用预设模式（心跳/脉搏）
+# 使用预设放大视频中的运动
 python main.py magnify input.mp4 output.mp4 --preset pulse
 
-# 分析视频并建议参数
+# 获取最佳放大参数建议
 python main.py suggest input.mp4
 ```
 
-## 核心功能
+## 📋 命令说明
 
-- **运动放大**：基于拉普拉斯金字塔的欧拉运动放大，可放大肉眼难以察觉的微小运动
-- **智能频率分析**：自动检测视频频率特性，生成最优参数建议
-- **预设模式**：针对常见场景（心跳、呼吸等）的优化参数
-- **视频稳定与降噪**：减少相机抖动和噪点干扰
-- **高效处理**：支持GPU加速和智能缓存，高效处理大型视频
+命令 | 功能 | 重要说明
+---|---|---
+`magnify` | 放大视频中的运动 | 使用预设或自定义参数进行带通滤波
+`analyze` | 分析视频中的频率 | 基于视频内容，不受预设限制
+`suggest` | 建议最佳放大参数 | 结合分析和预设建议
+`list-presets` | 列出所有频率预设 | 显示可用预设和参数
+`visualize-preset` | 可视化预设响应 | 生成频率响应曲线
 
-## 常用命令
+### ⚙️ 常用示例
 
-### 频率分析
+#### 分析命令
 
 ```bash
-# 分析视频并建议最佳参数
+# 分析视频频率（结果基于视频内容，不受预设限制）
+python main.py analyze input.mp4
+
+# 分析特定区域
+python main.py analyze input.mp4 --roi "100,100,200,200"
+
+# 获取放大建议
 python main.py suggest input.mp4
-
-# 列出所有可用预设
-python main.py list-presets
-
-# 可视化特定预设的频率响应
-python main.py visualize-preset pulse
 ```
 
-### 使用预设模式
+#### 放大命令
 
 ```bash
-# 放大脉搏/心跳
+# 放大心跳 (0.8-2.5 Hz)
 python main.py magnify input.mp4 output.mp4 --preset pulse
 
-# 放大呼吸运动
+# 放大呼吸 (0.2-0.7 Hz)
 python main.py magnify input.mp4 output.mp4 --preset breathing
+
+# 放大电机工频 (45.0-55.0 Hz)
+python main.py magnify input.mp4 output.mp4 --preset motor
+
+# 自定义频率和放大系数
+python main.py magnify input.mp4 output.mp4 --freq-min 0.8 --freq-max 2.0 --amplify 15
+
+# 多频段同时放大
+python main.py magnify input.mp4 output.mp4 --freq-bands "0.3-3.0,45.0-55.0"
 ```
 
-### 自定义参数
+## 🛠️ 核心参数
 
-```bash
-# 自定义频率范围和放大系数
-python main.py magnify input.mp4 output.mp4 --amplify 15 --freq-min 0.8 --freq-max 2.0
-
-# 启用视频稳定和降噪
-python main.py magnify input.mp4 output.mp4 --stabilize --blur 0.5 --motion-threshold 0.02
-```
-
-## 常用参数
-
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `--preset` | 使用预定义参数集 (pulse, breathing, etc.) | (无) |
-| `--amplify` | 运动放大系数 | 10.0 |
-| `--freq-min` | 最小放大频率 (Hz) | 0.4 |
-| `--freq-max` | 最大放大频率 (Hz) | 3.0 |
-| `--stabilize` | 放大前执行视频稳定 | False |
-| `--blur` | 空间模糊强度（0表示禁用） | 0 |
-| `--motion-threshold` | 最小运动幅度阈值（0表示禁用） | 0 |
+参数 | 说明 | 默认值
+---|---|---
+`--preset` | 预设参数 (pulse/breathing/motor 等) | 无
+`--amplify` | 运动放大系数 | 10.0
+`--freq-min` | 最小频率 (Hz) | 0.4
+`--freq-max` | 最大频率 (Hz) | 3.0
+`--freq-bands` | 多频段 ("0.3-3.0,45.0-55.0") | 无
+`--stabilize` | 视频稳定 | False
+`--blur` | 空间模糊 (0=禁用) | 0
+`--roi` | 感兴趣区域 ("x,y,width,height") | 整个画面
 
 <details>
 <summary>查看更多参数</summary>
 
-### 金字塔参数
+### 增强参数
 
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `--levels` | 拉普拉斯金字塔层数 | 3 |
-
-### 处理参数
-
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `--chunk-size` | 一次处理的帧数 | 20 |
-| `--overlap` | 数据块之间的重叠帧数 | 8 |
-
-### 增强选项
-
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `--stabilize-radius` | 稳定化平滑半径（帧数） | 视频帧率 |
-| `--stabilize-strength` | 稳定化强度 (0.0-1.0) | 0.95 |
-| `--adaptive` | 使用自适应放大（对大结构放大更强） | False |
-| `--bilateral` | 使用双边滤波（更好地保留边缘） | False |
-| `--color-stabilize` | 稳定颜色减少闪烁 | False |
-| `--multiband` | 多频段处理频率范围 | False |
-| `--keep-temp` | 保留临时文件 | False |
-
-### 分析参数
-
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `--analysis-dir` | 保存分析结果的目录 | 输出目录 |
-| `--sampling-rate` | 分析时采样的帧比例 (0.0-1.0) | 0.5 |
-| `--roi` | 感兴趣区域 (格式: "100,100,200,200") | 整个画面 |
-| `--skip-visualizations` | 跳过生成可视化图像以加快分析速度 | False |
-| `--no-cache` | 禁用缓存功能 | False |
-| `--use-analysis` | 使用指定的分析结果文件 | (无) |
+参数 | 说明 | 默认值
+---|---|---
+`--levels` | 金字塔层数 | 3
+`--chunk-size` | 一次处理帧数 | 20
+`--overlap` | 数据块重叠帧数 | 8
+`--adaptive` | 自适应放大 | False
+`--bilateral` | 双边滤波 | False
+`--color-stabilize` | 颜色稳定 | False
+`--multiband` | 多频段处理 | False
+`--sampling-rate` | 分析采样率 (0.0-1.0) | 0.5
+`--no-cache` | 禁用缓存 | False
 
 </details>
 
-## 使用技巧
+## 💡 使用技巧
 
-- **找到合适的频率范围**：使用 `suggest` 命令自动检测最佳频率
-- **减少噪点**：增加 `--blur` 值（0.5-1.0）并设置 `--motion-threshold`（0.01-0.05）
-- **处理抖动视频**：添加 `--stabilize` 参数
-- **提高处理效率**：增加 `--chunk-size` 提高处理速度（如果内存允许）
-- **加速重复处理**：系统会自动缓存分析结果和稳定化视频
+### 关键概念
 
-<details>
-<summary>更多高级技巧</summary>
+- **两种主要功能**：
+  - **分析**：检测视频中实际存在的频率，不受预设限制
+  - **放大**：使用指定频率范围的带通滤波器放大运动
 
-- **针对不同类型的运动使用不同的频率范围**：
-  - 脉搏/心跳：0.8-2.0 Hz
-  - 呼吸：0.1-0.5 Hz
-  - 快速振动：可高达10-30 Hz
+### 推荐工作流程
 
-- **高级降噪选项**：
-  - 使用 `--adaptive` 更好地保留细节
-  - 尝试 `--bilateral` 在减少噪点的同时保留边缘
+1. **分析** → 了解视频中存在的频率：`analyze`
+2. **选择** → 根据分析结果选择合适的预设或参数
+3. **放大** → 使用所选参数放大视频：`magnify`
 
-- **处理大视频**：
-  - 减小 `--overlap` 减少内存使用
-  - 分析时使用 `--sampling-rate` 加速
+### 常见场景参数
 
-- **处理抖动视频**：
-  - 调整 `--stabilize-radius` 和 `--stabilize-strength` 获得最佳效果
-  - 使用 `--keep-temp` 保留稳定化视频供后续使用
+目标 | 推荐预设 | 频率范围
+---|---|---
+心跳/脉搏 | `pulse` | 0.8-2.5 Hz
+呼吸 | `breathing` | 0.2-0.7 Hz
+电机工频 | `motor` | 45.0-55.0 Hz
+极慢运动 | `ultra-low` | 0.05-0.3 Hz
+高频振动 | `med-high` | 10.0-30.0 Hz
 
-- **缓存管理**：
-  - 所有缓存文件存储在 `TEMP` 目录，可通过 `.gitignore` 忽略
-  - 系统会自动清理30天以上的旧缓存
+### 优化建议
 
-</details>
+- **减少噪点**：`--blur 0.5 --motion-threshold 0.02`
+- **处理抖动**：`--stabilize`
+- **保留边缘**：`--bilateral`
+- **大型视频**：降低 `--sampling-rate` 和 `--overlap`
+- **高频率视频**：确保帧率至少是目标频率的两倍
 
-## 项目结构
+## 📂 项目结构
 
-项目采用模块化架构，将相关功能组织到专门的模块中，提高了代码的可维护性和可扩展性。用户无需关心内部结构，只需通过`main.py`与系统交互即可。
-
-- **命令处理模块**：
-  - `main.py` - 主程序入口和参数解析
-  - `analysis_commands.py` - 分析相关命令实现
-
-- **核心算法模块**：
-  - `motion_amplifier.py` - 线性欧拉放大法实现
-  - `pyramid.py` - 拉普拉斯金字塔实现
-  - `temporal_filter.py` - 时域滤波实现
-
-- **视频处理模块**：
-  - `video_handler.py` - 视频I/O处理
-  - `stabilizer.py` - 视频稳定功能
-
-- **频率分析模块**：
-  - `frequency_analyzer.py` 及相关支持文件
-
-- **缓存管理模块**：
-  - `cache_manager.py` 及相关支持文件
-
-- `TEMP/` - 存放缓存和临时文件
-
-## 许可证
-
-[待添加]
+- `main.py` - 主程序入口
+- `analysis_commands.py` - 分析命令实现
+- `motion_amplifier.py` - 欧拉放大实现
+- `frequency_analyzer.py` - 频率分析
+- `frequency_presets.py` - 预设定义
+- `cache_manager.py` - 缓存管理
+- `TEMP/` - 缓存和临时文件
+- `Image/` - 分析结果和可视化图像

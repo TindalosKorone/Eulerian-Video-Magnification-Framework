@@ -287,8 +287,11 @@ def analyze_video_frequencies(video_path, output_dir=None, sampling_rate=0.5,
         print(f"\n分析结果已保存至: {metadata_path}")
         print("\n建议频率范围:")
         for i, range_info in enumerate(suggested_ranges):
-            print(f"  {i+1}. {range_info['freq_min']:.2f}-{range_info['freq_max']:.2f} Hz "
-                  f"(峰值: {range_info['peak_freq']:.2f} Hz)")
+            if 'peak_freq' in range_info:
+                print(f"  {i+1}. {range_info['freq_min']:.2f}-{range_info['freq_max']:.2f} Hz "
+                      f"(峰值: {range_info['peak_freq']:.2f} Hz)")
+            else:
+                print(f"  {i+1}. {range_info['freq_min']:.2f}-{range_info['freq_max']:.2f} Hz")
         
         if best_preset:
             print(f"\n最佳匹配预设: {best_preset} "
