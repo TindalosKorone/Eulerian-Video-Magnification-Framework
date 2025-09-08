@@ -16,14 +16,14 @@ pip install -r requirements.txt
 ### 核心命令
 
 ```bash
-# 分析视频中的运动频率
-python main.py analyze input.mp4
+# 获取最佳放大参数建议（推荐使用）
+python main.py suggest input.mp4
 
 # 使用预设放大视频中的运动
 python main.py magnify input.mp4 output.mp4 --preset pulse
 
-# 获取最佳放大参数建议
-python main.py suggest input.mp4
+# 查看所有可用预设
+python main.py list-presets
 ```
 
 ## 📋 命令说明
@@ -31,24 +31,24 @@ python main.py suggest input.mp4
 命令 | 功能 | 重要说明
 ---|---|---
 `magnify` | 放大视频中的运动 | 使用预设或自定义参数进行带通滤波
-`analyze` | 分析视频中的频率 | 基于视频内容，不受预设限制
-`suggest` | 建议最佳放大参数 | 结合分析和预设建议
+`suggest` | 分析视频并建议最佳参数 | 推荐的主要分析命令
 `list-presets` | 列出所有频率预设 | 显示可用预设和参数
-`visualize-preset` | 可视化预设响应 | 生成频率响应曲线
+`visualize-preset` | 可视化预设响应曲线 | 不分析视频，仅显示预设的频率响应
+`analyze` | 基础频率分析 | 功能已包含在suggest命令中，建议直接使用suggest
 
 ### ⚙️ 常用示例
 
 #### 分析命令
 
 ```bash
-# 分析视频频率（结果基于视频内容，不受预设限制）
-python main.py analyze input.mp4
+# 获取放大建议（推荐使用）
+python main.py suggest input.mp4
 
 # 分析特定区域
-python main.py analyze input.mp4 --roi "100,100,200,200"
+python main.py suggest input.mp4 --roi "100,100,200,200"
 
-# 获取放大建议
-python main.py suggest input.mp4
+# 可视化特定预设的频率响应（不分析视频）
+python main.py visualize-preset pulse --video input.mp4
 ```
 
 #### 放大命令
@@ -110,10 +110,17 @@ python main.py magnify input.mp4 output.mp4 --freq-bands "0.3-3.0,45.0-55.0"
   - **分析**：检测视频中实际存在的频率，不受预设限制
   - **放大**：使用指定频率范围的带通滤波器放大运动
 
+### 命令参数说明
+
+- **`--preset` 参数在不同命令中的作用**：
+  - 在 `magnify` 命令中：直接设置带通滤波器频率范围和放大系数
+  - 在 `analyze` 命令中：仅用于设置显示范围，不影响分析结果
+  - 在 `suggest` 命令中：不影响分析结果和建议
+
 ### 推荐工作流程
 
-1. **分析** → 了解视频中存在的频率：`analyze`
-2. **选择** → 根据分析结果选择合适的预设或参数
+1. **分析** → 获取视频中存在的频率和建议参数：`suggest`
+2. **选择** → 根据建议选择合适的预设或自定义参数
 3. **放大** → 使用所选参数放大视频：`magnify`
 
 ### 常见场景参数
