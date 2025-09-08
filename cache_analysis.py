@@ -7,60 +7,60 @@ from cache_core import CacheCore
 
 class AnalysisResultsCache:
     """
-    Manages caching of frequency analysis results.
+    管理频率分析结果的缓存。
     """
     
     def __init__(self, cache_core: CacheCore):
         """
-        Initialize the analysis results cache manager.
+        初始化分析结果缓存管理器。
         
-        Parameters:
+        参数:
         -----------
         cache_core : CacheCore
-            Core cache manager instance
+            核心缓存管理器实例
         """
         self.core = cache_core
     
     def get_analysis_results_path(self, video_path: str, analysis_params: Dict[str, Any] = None) -> Optional[str]:
         """
-        Check if frequency analysis results exist in cache.
+        检查频率分析结果是否存在于缓存中。
         
-        Parameters:
+        参数:
         -----------
         video_path : str
-            Path to the video file
+            视频文件路径
         analysis_params : dict, optional
-            Dictionary of analysis parameters, used to create the cache key
+            分析参数字典，用于创建缓存键
             
-        Returns:
+        返回:
         --------
         str or None
-            Path to the cached analysis results JSON if it exists and is valid, otherwise None
+            如果缓存的分析结果JSON存在且有效，则返回其路径，否则返回None
         """
         video_hash = self.core.get_file_hash(video_path)
         if not video_hash:
             return None
             
-        # Default parameters if none provided
+        # 如果没有提供参数，则使用默认参数
         if analysis_params is None:
             analysis_params = {}
             
         param_hash = self.core.get_param_hash(analysis_params)
         cache_key = f"{video_hash}_{param_hash}"
         
-        # Check if we have this analysis in cache
+        # 检查缓存中是否有此分析
         if cache_key in self.core.cache_info['analysis']:
             cache_entry = self.core.cache_info['analysis'][cache_key]
             cached_path = cache_entry.get('metadata_path')
             
-            # Verify the cached file exists
+            # 验证缓存文件是否存在
             if cached_path and os.path.exists(cached_path):
-                # Check if the cache is stale
+                # 检查缓存是否过期
                 if time.time() - cache_entry.get('timestamp', 0) > self.core.max_cache_age_days * 86400:
-                    print(f"Cached analysis is older than {self.core.max_cache_age_days} days. Considering it stale.")
+                    print(f"缓存的分析结果超过 {self.core.max_cache_age_days} 天。视为过期。")
                     return None
                 
-                # Verify that visualization files exist
+                # 验证可视化文件是否存在
                 viz_paths = cache_entry.get('visualization_paths', {})
                 all_viz_exist = True
                 
@@ -75,10 +75,10 @@ class AnalysisResultsCache:
                         break
                 
                 if not all_viz_exist:
-                    print("Some visualization files are missing. Cache is invalid.")
+                    print("部分可视化文件丢失。缓存无效。")
                     return None
                     
-                print(f"Using cached analysis results: {cached_path}")
+                print(f"使用缓存的分析结果: {cached_path}")
                 return cached_path
                 
         return None
@@ -86,44 +86,44 @@ class AnalysisResultsCache:
     def add_analysis_results(self, video_path: str, metadata_path: str, visualization_paths: Dict[str, Any],
                            analysis_params: Dict[str, Any] = None) -> None:
         """
-        Add frequency analysis results to the cache.
+        将频率分析结果添加到缓存中。
         
-        Parameters:
+        参数:
         -----------
         video_path : str
-            Path to the video file
+            视频文件路径
         metadata_path : str
-            Path to the analysis metadata JSON file
+            分析元数据JSON文件路径
         visualization_paths : dict
-            Dictionary mapping visualization types to file paths
+            可视化类型到文件路径的映射字典
         analysis_params : dict, optional
-            Dictionary of analysis parameters used
+            使用的分析参数字典
         """
         video_hash = self.core.get_file_hash(video_path)
         if not video_hash:
-            print(f"Warning: Could not hash video {video_path}. Cache entry not created.")
+            print(f"警告: 无法对视频 {video_path} 进行哈希。未创建缓存条目。")
             return
         
-        # Default parameters if none provided
+        # 如果没有提供参数，则使用默认参数
         if analysis_params is None:
             analysis_params = {}
             
         param_hash = self.core.get_param_hash(analysis_params)
         cache_key = f"{video_hash}_{param_hash}"
         
-        # Copy the metadata and visualizations to the cache directory if not already there
+        # 如果元数据和可视化文件不在缓存目录中，则复制到缓存目录
         if not metadata_path.startswith(self.core.analysis_cache_dir):
             cache_basename = f"{os.path.splitext(os.path.basename(video_path))[0]}_analysis_{param_hash}"
             
-            # Copy metadata file
+            # 复制元数据文件
             cache_metadata_path = os.path.join(self.core.analysis_cache_dir, f"{cache_basename}.json")
             try:
                 shutil.copy2(metadata_path, cache_metadata_path)
                 metadata_path = cache_metadata_path
             except (IOError, shutil.Error) as e:
-                print(f"Error copying analysis metadata to cache: {e}")
+                print(f"复制分析元数据到缓存时出错: {e}")
             
-            # Copy visualization files
+            # 复制可视化文件
             new_viz_paths = {}
             for viz_type, viz_path in visualization_paths.items():
                 if isinstance(viz_path, dict):
@@ -135,7 +135,7 @@ class AnalysisResultsCache:
                             shutil.copy2(path, cache_viz_path)
                             new_viz_paths[viz_type][freq] = cache_viz_path
                         except (IOError, shutil.Error) as e:
-                            print(f"Error copying visualization to cache: {e}")
+                            print(f"复制可视化文件到缓存时出错: {e}")
                             new_viz_paths[viz_type][freq] = path
                 else:
                     viz_filename = f"{cache_basename}_{viz_type}.png"
@@ -144,12 +144,12 @@ class AnalysisResultsCache:
                         shutil.copy2(viz_path, cache_viz_path)
                         new_viz_paths[viz_type] = cache_viz_path
                     except (IOError, shutil.Error) as e:
-                        print(f"Error copying visualization to cache: {e}")
+                        print(f"复制可视化文件到缓存时出错: {e}")
                         new_viz_paths[viz_type] = viz_path
             
             visualization_paths = new_viz_paths
         
-        # Update cache info
+        # 更新缓存信息
         self.core.cache_info['analysis'][cache_key] = {
             'metadata_path': metadata_path,
             'visualization_paths': visualization_paths,
@@ -162,28 +162,28 @@ class AnalysisResultsCache:
     
     def clean_analysis_cache(self) -> int:
         """
-        Clean up old analysis cache files.
+        清理旧的分析缓存文件。
         
-        Returns:
+        返回:
         --------
         int
-            Number of files removed
+            移除的文件数量
         """
         files_removed = 0
         stale_analysis_keys = []
         
         for cache_key, cache_entry in self.core.cache_info['analysis'].items():
             if time.time() - cache_entry.get('timestamp', 0) > self.core.max_cache_age_days * 86400:
-                # Remove metadata file
+                # 移除元数据文件
                 metadata_path = cache_entry.get('metadata_path')
                 if metadata_path and os.path.exists(metadata_path) and metadata_path.startswith(self.core.analysis_cache_dir):
                     try:
                         os.remove(metadata_path)
                         files_removed += 1
                     except OSError as e:
-                        print(f"Error removing stale cache file {metadata_path}: {e}")
+                        print(f"移除过期缓存文件 {metadata_path} 时出错: {e}")
                 
-                # Remove visualization files
+                # 移除可视化文件
                 for viz_type, viz_path in cache_entry.get('visualization_paths', {}).items():
                     if isinstance(viz_path, dict):
                         for freq, path in viz_path.items():
@@ -192,17 +192,17 @@ class AnalysisResultsCache:
                                     os.remove(path)
                                     files_removed += 1
                                 except OSError as e:
-                                    print(f"Error removing stale cache file {path}: {e}")
+                                    print(f"移除过期缓存文件 {path} 时出错: {e}")
                     elif viz_path and os.path.exists(viz_path) and viz_path.startswith(self.core.analysis_cache_dir):
                         try:
                             os.remove(viz_path)
                             files_removed += 1
                         except OSError as e:
-                            print(f"Error removing stale cache file {viz_path}: {e}")
+                            print(f"移除过期缓存文件 {viz_path} 时出错: {e}")
                 
                 stale_analysis_keys.append(cache_key)
         
-        # Remove stale entries from cache info
+        # 从缓存信息中移除过期条目
         for key in stale_analysis_keys:
             del self.core.cache_info['analysis'][key]
         

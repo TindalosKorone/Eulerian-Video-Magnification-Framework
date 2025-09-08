@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 
 def build_laplacian_pyramid(tensor, levels):
-    """Builds a Laplacian pyramid for a tensor of frames."""
+    """为帧张量构建拉普拉斯金字塔。"""
     pyramid = []
     current = tensor
     for _ in range(levels):
@@ -15,7 +15,7 @@ def build_laplacian_pyramid(tensor, levels):
     return pyramid
 
 def collapse_laplacian_pyramid(pyramid):
-    """Collapses a Laplacian pyramid to reconstruct the original tensor."""
+    """折叠拉普拉斯金字塔以重建原始张量。"""
     current = pyramid[-1]
     for i in range(len(pyramid) - 2, -1, -1):
         up = F.interpolate(current, size=pyramid[i].shape[2:], mode='bilinear', align_corners=False)

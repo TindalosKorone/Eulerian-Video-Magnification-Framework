@@ -8,142 +8,142 @@ from cache_analysis import AnalysisResultsCache
 
 class CacheManager:
     """
-    Manages caching of temporary files and analysis results.
-    This is the main entry point for cache operations, using the specialized
-    cache components for different types of cached data.
+    管理临时文件和分析结果的缓存。
+    这是缓存操作的主要入口点，使用专门的
+    缓存组件来处理不同类型的缓存数据。
     """
     
     def __init__(self, cache_dir=None, max_cache_age_days=30):
         """
-        Initialize the cache manager.
+        初始化缓存管理器。
         
-        Parameters:
+        参数:
         -----------
         cache_dir : str, optional
-            Directory to store cache files. If None, defaults to 'TEMP' in the current directory.
+            存储缓存文件的目录。如果为None，默认为当前目录下的'TEMP'。
         max_cache_age_days : int, optional
-            Maximum age of cache files in days before they're considered stale.
+            缓存文件被视为过期前的最大保存天数。
         """
-        # Initialize the core cache manager
+        # 初始化核心缓存管理器
         self.core = CacheCore(cache_dir, max_cache_age_days)
         
-        # Initialize specialized cache managers
+        # 初始化专门的缓存管理器
         self.stabilized = StabilizedVideoCache(self.core)
         self.analysis = AnalysisResultsCache(self.core)
     
     def get_stabilized_video_path(self, video_path: str, stabilize_params: Dict[str, Any] = None) -> Optional[str]:
         """
-        Check if a stabilized version of the video exists in cache.
+        检查视频的稳定化版本是否存在于缓存中。
         
-        Parameters:
+        参数:
         -----------
         video_path : str
-            Path to the original video file
+            原始视频文件的路径
         stabilize_params : dict, optional
-            Dictionary of stabilization parameters, used to create the cache key
+            稳定化参数字典，用于创建缓存键
             
-        Returns:
+        返回:
         --------
         str or None
-            Path to the cached stabilized video if it exists and is valid, otherwise None
+            如果缓存的稳定化视频存在且有效，则返回其路径，否则返回None
         """
         return self.stabilized.get_stabilized_video_path(video_path, stabilize_params)
     
     def add_stabilized_video(self, original_video_path: str, stabilized_video_path: str, 
                            stabilize_params: Dict[str, Any] = None) -> None:
         """
-        Add a stabilized video to the cache.
+        将稳定化视频添加到缓存中。
         
-        Parameters:
+        参数:
         -----------
         original_video_path : str
-            Path to the original video file
+            原始视频文件的路径
         stabilized_video_path : str
-            Path to the stabilized video file
+            稳定化视频文件的路径
         stabilize_params : dict, optional
-            Dictionary of stabilization parameters used
+            使用的稳定化参数字典
         """
         self.stabilized.add_stabilized_video(original_video_path, stabilized_video_path, stabilize_params)
     
     def get_analysis_results_path(self, video_path: str, analysis_params: Dict[str, Any] = None) -> Optional[str]:
         """
-        Check if frequency analysis results exist in cache.
+        检查频率分析结果是否存在于缓存中。
         
-        Parameters:
+        参数:
         -----------
         video_path : str
-            Path to the video file
+            视频文件路径
         analysis_params : dict, optional
-            Dictionary of analysis parameters, used to create the cache key
+            分析参数字典，用于创建缓存键
             
-        Returns:
+        返回:
         --------
         str or None
-            Path to the cached analysis results JSON if it exists and is valid, otherwise None
+            如果缓存的分析结果JSON存在且有效，则返回其路径，否则返回None
         """
         return self.analysis.get_analysis_results_path(video_path, analysis_params)
     
     def add_analysis_results(self, video_path: str, metadata_path: str, visualization_paths: Dict[str, Any],
                            analysis_params: Dict[str, Any] = None) -> None:
         """
-        Add frequency analysis results to the cache.
+        将频率分析结果添加到缓存中。
         
-        Parameters:
+        参数:
         -----------
         video_path : str
-            Path to the video file
+            视频文件路径
         metadata_path : str
-            Path to the analysis metadata JSON file
+            分析元数据JSON文件路径
         visualization_paths : dict
-            Dictionary mapping visualization types to file paths
+            可视化类型到文件路径的映射字典
         analysis_params : dict, optional
-            Dictionary of analysis parameters used
+            使用的分析参数字典
         """
         self.analysis.add_analysis_results(video_path, metadata_path, visualization_paths, analysis_params)
     
     def clean_cache(self, force=False) -> int:
         """
-        Clean up old cache files.
+        清理旧的缓存文件。
         
-        Parameters:
+        参数:
         -----------
         force : bool, optional
-            If True, clean the cache regardless of when it was last cleaned
+            如果为True，无论上次清理时间如何都清理缓存
             
-        Returns:
+        返回:
         --------
         int
-            Number of files removed
+            移除的文件数量
         """
-        # Check if it's time to clean the cache
+        # 检查是否是时候清理缓存
         if not force:
             last_cleaned = self.core.cache_info.get('last_cleaned', 0)
-            if time.time() - last_cleaned < 7 * 86400:  # Clean weekly
+            if time.time() - last_cleaned < 7 * 86400:  # 每周清理
                 return 0
         
-        print("Cleaning cache...")
+        print("正在清理缓存...")
         
-        # Clean stabilized videos
+        # 清理稳定化视频
         stabilized_removed = self.stabilized.clean_stabilized_cache()
         
-        # Clean analysis files
+        # 清理分析文件
         analysis_removed = self.analysis.clean_analysis_cache()
         
-        # Update last cleaned timestamp
+        # 更新上次清理时间戳
         self.core.cache_info['last_cleaned'] = time.time()
         self.core._save_cache_info()
         
         total_removed = stabilized_removed + analysis_removed
-        print(f"Cache cleaned, {total_removed} files removed.")
+        print(f"缓存已清理，移除了 {total_removed} 个文件。")
         return total_removed
     
     def get_cache_size(self) -> Dict[str, Union[int, str]]:
         """
-        Get the current size of the cache.
+        获取当前缓存的大小。
         
-        Returns:
+        返回:
         --------
         dict
-            Dictionary with keys 'stabilized', 'analysis', and 'total', containing the size in bytes and human-readable format
+            包含键'stabilized'、'analysis'和'total'的字典，包含字节大小和人类可读格式
         """
         return self.core.get_cache_size()
