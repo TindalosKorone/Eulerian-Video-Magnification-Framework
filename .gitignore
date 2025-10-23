@@ -9,3 +9,4 @@ TEMP/
 TEMP/**/*
 cache/
 cache/**/*
+.venv/*
