@@ -1,6 +1,5 @@
 # 欧拉视频运动放大框架
 
-> 放大人眼难以察觉的微小运动，实现视觉增强。
 
 **本工具使用AI生成**
 
@@ -8,11 +7,20 @@
 
 ### 安装
 
++ 使用pip安装
+
 ```bash
 git clone https://github.com/yourusername/Eulerian-Video-Magnification.git
 cd Eulerian-Video-Magnification
 pip install -r requirements.txt
 ```
++ 使用uv安装
+```bash
+git clone https://github.com/yourusername/Eulerian-Video-Magnification.git
+cd Eulerian-Video-Magnification
+uv sync
+```
+
 > **注意**：pytorch需单独安装。CUDA支持请参考 [官方教程](https://pytorch.org/get-started/locally/)
 
 ### 核心命令
